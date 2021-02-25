@@ -123,6 +123,10 @@ namespace NetTopologySuite.Geometries.Implementation
                 int chunkSize = rawData[i].DimensionCount;
                 switch (chunkSize)
                 {
+                    case 1:
+                        span.Reverse();
+                        break;
+
                     case 2:
                         MemoryMarshal.Cast<double, (double, double)>(span).Reverse();
                         break;
