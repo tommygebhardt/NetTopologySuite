@@ -150,5 +150,403 @@ namespace NetTopologySuite.Geometries.Implementation
 
             return new RawCoordinateSequence(rawDataList.ToArray(), dimensionMap, measures);
         }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given arrays for reading
+        /// and writing X and Y data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="x">
+        /// An array of X values, laid out as
+        /// <c>[x0, x1, x2, ..., xn]</c>.
+        /// </param>
+        /// <param name="y">
+        /// An array of Y values, laid out as
+        /// <c>[y0, y1, y2, ..., yn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given arrays.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXY(Memory<double> x, Memory<double> y)
+        {
+            if (x.Length != y.Length)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { x, y };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (1, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 0);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X and Y data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xy">
+        /// An array of X and Y values, laid out as
+        /// <c>[x0, y0, x1, y1, x2, y2, ..., xn, yn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="PackedDoubleCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xy"/> is not a multiple of 2.
+        /// </exception>
+        public RawCoordinateSequence CreateXY(Memory<double> xy)
+        {
+            if (xy.Length % 2 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 2.", nameof(xy));
+            }
+
+            Memory<double>[] rawData = { xy };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 0);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given arrays for reading
+        /// and writing X, Y, and Z data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="x">
+        /// An array of X values, laid out as
+        /// <c>[x0, x1, x2, ..., xn]</c>.
+        /// </param>
+        /// <param name="y">
+        /// An array of Y values, laid out as
+        /// <c>[y0, y1, y2, ..., yn]</c>.
+        /// </param>
+        /// <param name="z">
+        /// An array of Z values, laid out as
+        /// <c>[z0, z1, z2, ..., zn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given arrays.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZ(Memory<double> x, Memory<double> y, Memory<double> z)
+        {
+            if (x.Length != y.Length || x.Length != z.Length)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { x, y, z };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (1, 0), (2, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 0);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, and Z data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xy">
+        /// An array of X and Y values, laid out as
+        /// <c>[x0, y0, x1, y1, x2, y2, ..., xn, yn]</c>.
+        /// </param>
+        /// <param name="z">
+        /// An array of Z values, laid out as
+        /// <c>[z0, z1, z2, ..., zn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="DotSpatialAffineCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xy"/> is not a multiple of 2, or when the
+        /// input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZ(Memory<double> xy, Memory<double> z)
+        {
+            if (xy.Length % 2 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 2.", nameof(xy));
+            }
+
+            if (xy.Length != z.Length * 2)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { xy, z };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (1, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 0);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, and Z data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xyz">
+        /// An array of X, Y, and Z values, laid out as
+        /// <c>[x0, y0, z0, x1, y1, z1, x2, y2, z2, ..., xn, yn, zn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="PackedDoubleCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xyz"/> is not a multiple of 3.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZ(Memory<double> xyz)
+        {
+            if (xyz.Length % 3 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 3.", nameof(xyz));
+            }
+
+            Memory<double>[] rawData = { xyz };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (0, 2) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 0);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given arrays for reading
+        /// and writing X, Y, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="x">
+        /// An array of X values, laid out as
+        /// <c>[x0, x1, x2, ..., xn]</c>.
+        /// </param>
+        /// <param name="y">
+        /// An array of Y values, laid out as
+        /// <c>[y0, y1, y2, ..., yn]</c>.
+        /// </param>
+        /// <param name="m">
+        /// An array of M values, laid out as
+        /// <c>[m0, m1, m2, ..., mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given arrays.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYM(Memory<double> x, Memory<double> y, Memory<double> m)
+        {
+            if (x.Length != y.Length || x.Length != m.Length)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { x, y, m };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (1, 0), (2, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xy">
+        /// An array of X and Y values, laid out as
+        /// <c>[x0, y0, x1, y1, x2, y2, ..., xn, yn]</c>.
+        /// </param>
+        /// <param name="m">
+        /// An array of M values, laid out as
+        /// <c>[m0, m1, m2, ..., mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="DotSpatialAffineCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xy"/> is not a multiple of 2, or when the
+        /// input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYM(Memory<double> xy, Memory<double> m)
+        {
+            if (xy.Length % 2 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 2.", nameof(xy));
+            }
+
+            if (xy.Length != m.Length * 2)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { xy, m };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (1, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xym">
+        /// An array of X, Y, and M values, laid out as
+        /// <c>[x0, y0, m0, x1, y1, m1, x2, y2, m2, ..., xn, yn, mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="PackedDoubleCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xym"/> is not a multiple of 3.
+        /// </exception>
+        public RawCoordinateSequence CreateXYM(Memory<double> xym)
+        {
+            if (xym.Length % 3 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 3.", nameof(xym));
+            }
+
+            Memory<double>[] rawData = { xym };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (0, 2) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given arrays for reading
+        /// and writing X, Y, Z, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="x">
+        /// An array of X values, laid out as
+        /// <c>[x0, x1, x2, ..., xn]</c>.
+        /// </param>
+        /// <param name="y">
+        /// An array of Y values, laid out as
+        /// <c>[y0, y1, y2, ..., yn]</c>.
+        /// </param>
+        /// <param name="z">
+        /// An array of Z values, laid out as
+        /// <c>[z0, z1, z2, ..., zn]</c>.
+        /// </param>
+        /// <param name="m">
+        /// An array of M values, laid out as
+        /// <c>[m0, m1, m2, ..., mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given arrays.
+        /// </returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZM(Memory<double> x, Memory<double> y, Memory<double> z, Memory<double> m)
+        {
+            if (x.Length != y.Length || x.Length != z.Length || x.Length != m.Length)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { x, y, z, m };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (1, 0), (2, 0), (3, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, Z, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xy">
+        /// An array of X and Y values, laid out as
+        /// <c>[x0, y0, x1, y1, x2, y2, ..., xn, yn]</c>.
+        /// </param>
+        /// <param name="z">
+        /// An array of Z values, laid out as
+        /// <c>[z0, z1, z2, ..., zn]</c>.
+        /// </param>
+        /// <param name="m">
+        /// An array of M values, laid out as
+        /// <c>[m0, m1, m2, ..., mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="DotSpatialAffineCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xy"/> is not a multiple of 2, or when the
+        /// input arrays do not contain data for the same number of coordinates.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZM(Memory<double> xy, Memory<double> z, Memory<double> m)
+        {
+            if (xy.Length % 2 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 2.", nameof(xy));
+            }
+
+            if (xy.Length != z.Length * 2 || z.Length != m.Length)
+            {
+                throw new ArgumentException("Arrays must contain data for the same number of coordinates.");
+            }
+
+            Memory<double>[] rawData = { xy, z, m };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (1, 0), (2, 0) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RawCoordinateSequence"/> that uses the given array for reading
+        /// and writing X, Y, Z, and M data ignoring the <see cref="Ordinates"/> flags that were passed
+        /// into the constructor for this factory instance.
+        /// </summary>
+        /// <param name="xyzm">
+        /// An array of X, Y, Z, and M values, laid out as
+        /// <c>[x0, y0, z0, m0, x1, y1, z1, m1, x2, y2, z2, m2, ..., xn, yn, zn, mn]</c>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="RawCoordinateSequence"/> instance that's backed by the given array.
+        /// </returns>
+        /// <remarks>
+        /// The resulting instance is essentially a <see cref="PackedDoubleCoordinateSequence"/>
+        /// with slightly more overhead, so the main reason to prefer this over that one would be if
+        /// you <b>really</b> need to avoid copying the data to fit it into that format.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the length of <paramref name="xyzm"/> is not a multiple of 4.
+        /// </exception>
+        public RawCoordinateSequence CreateXYZM(Memory<double> xyzm)
+        {
+            if (xyzm.Length % 4 != 0)
+            {
+                throw new ArgumentException("Length must be a multiple of 4.", nameof(xyzm));
+            }
+
+            Memory<double>[] rawData = { xyzm };
+            (int RawDataIndex, int DimensionIndex)[] dimensionMap = { (0, 0), (0, 1), (0, 2), (0, 3) };
+            return new RawCoordinateSequence(rawData, dimensionMap, measures: 1);
+        }
     }
 }

@@ -20,7 +20,7 @@ namespace NetTopologySuite.Geometries.Implementation
         /// Initializes a new instance of the <see cref="RawCoordinateSequence"/> class.
         /// </summary>
         /// <param name="rawData">
-        /// Contains the raw data for this array.
+        /// Contains the raw data for this sequence.
         /// </param>
         /// <param name="dimensionMap">
         /// Contains a pair of indexes to tell us, for each dimension, where to find its data in
@@ -67,7 +67,8 @@ namespace NetTopologySuite.Geometries.Implementation
         /// with a "stride" value that represents how many slots there are between elements.
         /// </summary>
         /// <param name="ordinateIndex">
-        /// The index of the ordinate whose values to get.
+        /// The index of the ordinate whose values to get, from
+        /// <see cref="CoordinateSequence.TryGetOrdinateIndex"/>.
         /// </param>
         /// <returns>
         /// The underlying <see cref="Memory{T}"/> and stride.
@@ -76,7 +77,7 @@ namespace NetTopologySuite.Geometries.Implementation
         {
             if ((uint)ordinateIndex >= (uint)_dimensionMap.Length)
             {
-                throw new ArgumentOutOfRangeException(nameof(ordinateIndex), ordinateIndex, "Must be less than Dimension.");
+                throw new ArgumentOutOfRangeException(nameof(ordinateIndex), ordinateIndex, $"Must be less than Dimension (use {nameof(TryGetOrdinateIndex)} to get the value to use for this if you are unsure).");
             }
 
             (int sourceIndex, int offset) = _dimensionMap[ordinateIndex];
@@ -115,17 +116,38 @@ namespace NetTopologySuite.Geometries.Implementation
         {
             var result = (RawCoordinateSequence)Copy();
 
-            // reverse all the individual arrays.
-            foreach (var (array, _) in result._rawData)
+            var rawData = result._rawData;
+            for (int i = 0; i < rawData.Length; i++)
             {
-                array.Span.Reverse();
-            }
+                var span = rawData[i].Array.Span;
+                int chunkSize = rawData[i].DimensionCount;
+                switch (chunkSize)
+                {
+                    case 2:
+                        MemoryMarshal.Cast<double, (double, double)>(span).Reverse();
+                        break;
 
-            // that reversed the order of the ordinate values within each coordinate, so update the
-            // map to mark them in reversed order.
-            foreach (ref var entry in result._dimensionMap.AsSpan())
-            {
-                entry.DimensionIndex = result._rawData[entry.RawDataIndex].DimensionCount - entry.DimensionIndex - 1;
+                    case 3:
+                        MemoryMarshal.Cast<double, (double, double, double)>(span).Reverse();
+                        break;
+
+                    case 4:
+                        MemoryMarshal.Cast<double, (double, double, double, double)>(span).Reverse();
+                        break;
+
+                    default:
+                        // those are the common sizes... we could keep going, but for the sake of
+                        // keeping this smallish, just reverse the raw array and then reverse each
+                        // individual coordinate's section within the array.
+                        span.Reverse();
+                        while (!span.IsEmpty)
+                        {
+                            span.Slice(0, chunkSize).Reverse();
+                            span = span.Slice(chunkSize);
+                        }
+
+                        break;
+                }
             }
 
             return result;
@@ -276,29 +298,26 @@ namespace NetTopologySuite.Geometries.Implementation
 
             if (count == 0)
             {
+                // validation for empty is a lot different, because we can't start from the number
+                // of slots in the arrays of rawData.
                 ValidateEmpty(rawData, dimensionMap);
                 return count;
             }
 
-            Span<int> scratchIntBuffer = stackalloc int[0];
-            if (rawData.Length < 10)
-            {
-                scratchIntBuffer = stackalloc int[rawData.Length * 2];
-                scratchIntBuffer.Clear();
-            }
-            else
-            {
-                scratchIntBuffer = new int[rawData.Length * 2];
-            }
+            var scratchIntBuffer = rawData.Length < 20
+                ? stackalloc int[rawData.Length * 2]
+                : new int[rawData.Length * 2];
 
-            var dimensionsBefore = scratchIntBuffer.Slice(0, rawData.Length);
-            var dimensionsIn = scratchIntBuffer.Slice(rawData.Length);
+            // for each array in rawData, calculate two values: the first value tells us the number
+            // of dimensions in the arrays before it, and the second value tells us the number of
+            // dimensions in that array itself.
+            var dimensionsBySourceArray = MemoryMarshal.Cast<int, (int DimensionOffset, int DimensionCount)>(scratchIntBuffer);
 
             int dimensionsSoFar = 0;
             for (int i = 0; i < rawData.Length; i++)
             {
-                dimensionsBefore[i] = dimensionsSoFar;
-                dimensionsSoFar += dimensionsIn[i] = rawData[i].Length / count;
+                dimensionsBySourceArray[i].DimensionOffset = dimensionsSoFar;
+                dimensionsSoFar += dimensionsBySourceArray[i].DimensionCount = rawData[i].Length / count;
             }
 
             if (dimensionsSoFar != dimensionCount)
@@ -306,44 +325,41 @@ namespace NetTopologySuite.Geometries.Implementation
                 throw new ArgumentException("Inferred dimension count from raw data does not match the number of entries in dimension map.");
             }
 
-            Span<bool> slotIsUsed = stackalloc bool[0];
-            if (dimensionCount < 20)
-            {
-                slotIsUsed = stackalloc bool[dimensionCount];
-                slotIsUsed.Clear();
-            }
-            else
-            {
-                slotIsUsed = new bool[dimensionCount];
-            }
+            // now check to ensure that each dimension is actually represented in one (and only one)
+            // slot in rawData.  those counts that we just computed will let us check each dimension
+            // very quickly, using just a single array lookup and some comparisons.
+            var slotIsUsed = dimensionCount < 20
+                ? stackalloc bool[dimensionCount]
+                : new bool[dimensionCount];
+            slotIsUsed.Clear();
+            int usedSlotCount = 0;
 
             foreach ((int rawDataIndex, int dimensionIndex) in dimensionMap)
             {
-                if ((uint)rawDataIndex >= (uint)dimensionsIn.Length)
+                if ((uint)rawDataIndex >= (uint)dimensionsBySourceArray.Length)
                 {
                     throw new ArgumentException("Raw data index in dimension map must be less than the length of raw data.");
                 }
 
-                if ((uint)dimensionIndex >= (uint)dimensionsIn[rawDataIndex])
+                (int dimensionOffsetInSourceArray, int dimensionCountInSourceArray) = dimensionsBySourceArray[rawDataIndex];
+                if ((uint)dimensionIndex >= (uint)dimensionCountInSourceArray)
                 {
-                    throw new ArgumentException("Dimension index in dimension map must be less than the number of dimensions in the corresponding raw data slot.");
+                    throw new ArgumentException("Dimension index in dimension map must be a positive value that's less than the number of dimensions in the corresponding raw data slot.");
                 }
 
-                int slotIndex = dimensionsBefore[rawDataIndex] + dimensionIndex;
+                int slotIndex = dimensionOffsetInSourceArray + dimensionIndex;
                 if (slotIsUsed[slotIndex])
                 {
                     throw new ArgumentException("Dimension map contains duplicate values.", nameof(dimensionMap));
                 }
 
                 slotIsUsed[slotIndex] = true;
+                ++usedSlotCount;
             }
 
-            foreach (bool flag in slotIsUsed)
+            if (usedSlotCount != dimensionCount)
             {
-                if (!flag)
-                {
-                    throw new ArgumentException("Dimension map does not cover all slots in raw data.");
-                }
+                throw new ArgumentException("Dimension map does not cover all slots in raw data.");
             }
 
             return count;
@@ -353,16 +369,10 @@ namespace NetTopologySuite.Geometries.Implementation
         {
             int dimensionCount = dimensionMap.Length;
 
-            Span<bool> slotUsed = stackalloc bool[0];
-            if (rawData.Length * dimensionCount < 400)
-            {
-                slotUsed = stackalloc bool[rawData.Length * dimensionCount];
-                slotUsed.Clear();
-            }
-            else
-            {
-                slotUsed = new bool[rawData.Length * dimensionCount];
-            }
+            var slotUsed = rawData.Length * dimensionCount < 400
+                ? stackalloc bool[rawData.Length * dimensionCount]
+                : new bool[rawData.Length * dimensionCount];
+            slotUsed.Clear();
 
             foreach ((int rawDataIndex, int dimensionIndex) in dimensionMap)
             {
@@ -401,6 +411,13 @@ namespace NetTopologySuite.Geometries.Implementation
             {
                 throw new ArgumentException("Dimension map does not cover all slots in raw data.");
             }
+        }
+
+        private static void Swap<T>(ref T a, ref T b)
+        {
+            var t = a;
+            a = b;
+            b = t;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
